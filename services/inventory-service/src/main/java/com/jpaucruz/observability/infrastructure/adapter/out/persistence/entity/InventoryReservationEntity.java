@@ -1,6 +1,6 @@
 package com.jpaucruz.observability.infrastructure.adapter.out.persistence.entity;
 
-import com.jpaucruz.observability.domain.model.OrderStatus;
+import com.jpaucruz.observability.domain.model.ReservationStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,24 +10,28 @@ import lombok.Setter;
 import java.util.UUID;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "inventory_reservations")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderEntity {
+public class InventoryReservationEntity {
 
     @Id
-    private UUID id;
+    @Column(name = "reservation_id")
+    private UUID reservationId;
+
+    @Column(name = "order_id", nullable = false)
+    private UUID orderId;
 
     @Column(name = "product_id", nullable = false)
     private Long productId;
 
-    @Column(nullable = false)
+    @Column(name = "quantity", nullable = false)
     private Integer quantity;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private OrderStatus status;
+    @Column(name = "status", nullable = false)
+    private ReservationStatus status;
 
 }

@@ -5,6 +5,7 @@ import com.jpaucruz.observability.generated.adapter.in.rest.model.CreateOrderReq
 import com.jpaucruz.observability.generated.adapter.in.rest.model.OrderResponse;
 import com.jpaucruz.observability.generated.infrastructure.adapter.in.rest.api.OrdersApi;
 import com.jpaucruz.observability.infrastructure.adapter.in.rest.mapper.OrderRestMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,13 +22,9 @@ public class OrderRestAdapter implements OrdersApi {
 
     @Override
     public ResponseEntity<OrderResponse> createOrder(CreateOrderRequest createOrderRequest) {
-        return ResponseEntity.ok(
-            mapper.toResponse(
-                createOrderUseCase.createOrder(
-                    mapper.toCommand(createOrderRequest)
-                )
-            )
-        );
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(mapper.toResponse(createOrderUseCase.createOrder(mapper.toCommand(createOrderRequest))));
     }
 
 }
