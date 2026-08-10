@@ -11,7 +11,7 @@ public record Order(
 
     public static Order create(Long productId, Integer quantity) {
         return new Order(
-            null,
+            UUID.randomUUID(),
             productId,
             quantity,
             OrderStatus.CREATED

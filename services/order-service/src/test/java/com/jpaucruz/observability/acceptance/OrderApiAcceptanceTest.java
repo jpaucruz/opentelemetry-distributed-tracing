@@ -44,7 +44,7 @@ class OrderApiAcceptanceTest {
             OrderResponse.class
         );
         // then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getProductId()).isEqualTo(PRODUCT_ID);
         assertThat(response.getBody().getQuantity()).isEqualTo(QUANTITY);
