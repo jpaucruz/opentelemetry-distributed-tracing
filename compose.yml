@@ -1,0 +1,58 @@
+services:
+
+  order-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d orders"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inventory-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: inventory
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+    environment:
+      DB_URL: jdbc:postgresql://inventory-db:5432/inventory
+      DB_USERNAME: inventory
+      DB_PASSWORD: inventory
+    ports:
+      - "8081:8081"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: ./services/order-service
+    environment:
+      DB_URL: jdbc:postgresql://order-db:5432/orders
+      DB_USERNAME: orders
+      DB_PASSWORD: orders
+      INVENTORY_BASE_URL: http://inventory-service:8081
+    ports:
+      - "8080:8080"
+    depends_on:
+      order-db:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started

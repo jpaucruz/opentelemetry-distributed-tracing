@@ -100,7 +100,7 @@ class ArchitectureTest {
     static final ArchRule output_ports_should_follow_the_project_convention =
             classes()
                     .that()
-                    .resideInAPackage("..application.port.out..")
+                    .resideInAPackage("..application.port.out")
                     .should()
                     .beInterfaces()
                     .andShould()
