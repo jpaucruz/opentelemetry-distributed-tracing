@@ -7,15 +7,20 @@ import com.jpaucruz.observability.infrastructure.adapter.out.persistence.entity.
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryOutboxRepository;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryRepository;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryReservationRepository;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -29,6 +34,7 @@ import static org.awaitility.Awaitility.await;
 class InventoryMessagingAcceptanceTest {
 
     private static final String ORDER_EVENTS_TOPIC = "order.events";
+    private static final String ORDER_EVENTS_DLT_TOPIC = "order.events-dlt";
     private static final UUID ORDER_ID = UUID.fromString("b67b84e7-96c2-4dbf-bac4-a0cbca63b355");
     private static final Long PRODUCT_ID = 1001L;
     private static final int INITIAL_STOCK = 10;
@@ -36,6 +42,9 @@ class InventoryMessagingAcceptanceTest {
 
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
+
+    @Autowired
+    private ConsumerFactory<String, String> consumerFactory;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -131,6 +140,24 @@ class InventoryMessagingAcceptanceTest {
                 assertThat(outbox.getPayload()).contains(String.valueOf(QUANTITY));
                 assertThat(outbox.getCreatedAt()).isNotNull();
             });
+    }
+
+    @Test
+    void shouldPublishInvalidReservationRequestToDlt() {
+        // given
+        String invalidPayload = "invalid-json";
+        try (Consumer<String, String> consumer = consumerFactory.createConsumer("inventory-service-dlt-test",null)) {
+            consumer.subscribe(List.of(ORDER_EVENTS_DLT_TOPIC));
+            // when
+            kafkaTemplate.send(ORDER_EVENTS_TOPIC, ORDER_ID.toString(), invalidPayload).join();
+            // then
+            ConsumerRecord<String, String> deadLetter = KafkaTestUtils.getSingleRecord(consumer, ORDER_EVENTS_DLT_TOPIC, Duration.ofSeconds(15));
+            assertThat(deadLetter.key()).isEqualTo(ORDER_ID.toString());
+            assertThat(deadLetter.value()).isEqualTo(invalidPayload);
+            assertThat(reservationRepository.count()).isZero();
+            InventoryEntity inventory = inventoryRepository.findById(PRODUCT_ID).orElseThrow();
+            assertThat(inventory.getAvailableQuantity()).isEqualTo(INITIAL_STOCK);
+        }
     }
 
 }
