@@ -9,11 +9,19 @@ public record Order(UUID id, Long productId, Integer quantity, OrderStatus statu
     }
 
     public Order confirm() {
-        return new Order(id, productId, quantity, OrderStatus.CONFIRMED);
+        return switch (status) {
+            case PENDING -> new Order(id, productId, quantity, OrderStatus.CONFIRMED);
+            case CONFIRMED -> this;
+            case REJECTED -> throw new IllegalStateException("Rejected order cannot be confirmed");
+        };
     }
 
     public Order reject() {
-        return new Order(id, productId, quantity, OrderStatus.REJECTED);
+        return switch (status) {
+            case PENDING -> new Order(id, productId, quantity, OrderStatus.REJECTED);
+            case REJECTED -> this;
+            case CONFIRMED -> throw new IllegalStateException("Confirmed order cannot be rejected");
+        };
     }
 
 }

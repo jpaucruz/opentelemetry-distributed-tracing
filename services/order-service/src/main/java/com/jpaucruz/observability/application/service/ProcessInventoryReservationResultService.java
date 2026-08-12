@@ -32,6 +32,9 @@ public class ProcessInventoryReservationResultService implements ProcessInventor
             case INVENTORY_NOT_FOUND, INSUFFICIENT_STOCK -> order.reject();
         };
         // update order
+        if (updatedOrder == order) { // idempotent
+            return;
+        }
         updateOrderPort.updateOrder(updatedOrder);
 
     }

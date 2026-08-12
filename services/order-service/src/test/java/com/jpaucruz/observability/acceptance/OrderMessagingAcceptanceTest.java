@@ -9,6 +9,7 @@ import com.jpaucruz.observability.infrastructure.adapter.out.persistence.reposit
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.OrderRepository;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -138,11 +139,99 @@ class OrderMessagingAcceptanceTest {
         }
     }
 
+    @Test
+    void shouldProcessDuplicatedInventoryReservedEventIdempotently() {
+        // given
+        String eventType = "INVENTORY_RESERVED";
+        // when
+        sendKafkaEvent(eventType);
+        await()
+            .atMost(Duration.ofSeconds(10))
+            .untilAsserted(() -> assertThat(findOrder().status()).isEqualTo(OrderStatus.CONFIRMED));
+        // duplicate
+        sendKafkaEvent(eventType);
+        // then
+        await()
+            .during(Duration.ofSeconds(2))
+            .atMost(Duration.ofSeconds(5))
+            .untilAsserted(() -> {
+                Order order = findOrder();
+                assertThat(order.status()).isEqualTo(OrderStatus.CONFIRMED);
+                assertThat(orderRepository.count()).isEqualTo(1);
+            });
+    }
+
+    @Test
+    void shouldProcessDuplicatedInsufficientStockEventIdempotently() {
+        // given
+        String eventType = "INSUFFICIENT_STOCK";
+        // when
+        sendKafkaEvent(eventType);
+        await()
+            .atMost(Duration.ofSeconds(10))
+            .untilAsserted(() ->  assertThat(findOrder().status()).isEqualTo(OrderStatus.REJECTED));
+        // duplicate
+        sendKafkaEvent(eventType);
+        // then
+        await()
+            .during(Duration.ofSeconds(2))
+            .atMost(Duration.ofSeconds(5))
+            .untilAsserted(() -> {
+                Order order = findOrder();
+                assertThat(order.status()).isEqualTo(OrderStatus.REJECTED);
+                assertThat(orderRepository.count()).isEqualTo(1);
+            });
+    }
+
+    @Test
+    void shouldPublishContradictoryInventoryResultToDltAndKeepOrderConfirmed() {
+        // given
+        sendKafkaEvent("INVENTORY_RESERVED");
+        await()
+            .atMost(Duration.ofSeconds(10))
+            .untilAsserted(() -> assertThat(findOrder().status()).isEqualTo(OrderStatus.CONFIRMED)
+            );
+        String contradictoryEventType = "INSUFFICIENT_STOCK";
+
+        try (Consumer<String, String> consumer = consumerFactory.createConsumer("order-service-contradictory-dlt-test-" + UUID.randomUUID(),null)) {
+            consumer.subscribe(List.of(INVENTORY_EVENTS_DLT_TOPIC));
+            // when
+            sendKafkaEvent(contradictoryEventType);
+            // then
+            ConsumerRecord<String, String> deadLetter =  waitForDltRecord(consumer, contradictoryEventType);
+            assertThat(deadLetter.key()).isEqualTo(ORDER_ID.toString());
+            assertThat(readEventType(deadLetter)).isEqualTo(contradictoryEventType);
+            Order order = findOrder();
+            assertThat(order.status()).isEqualTo(OrderStatus.CONFIRMED);
+            assertThat(orderRepository.count()).isEqualTo(1);
+        }
+    }
+
     private void sendKafkaEvent(String eventType) {
         String payload = "{\"orderId\":\"%s\",\"productId\":%d,\"quantity\":%d}".formatted(ORDER_ID, PRODUCT_ID, QUANTITY);
         ProducerRecord<String, String> message = new ProducerRecord<>(INVENTORY_EVENTS_TOPIC, ORDER_ID.toString(), payload);
         message.headers().add("eventType", eventType.getBytes(StandardCharsets.UTF_8));
         kafkaTemplate.send(message).join();
+    }
+
+    private ConsumerRecord<String, String> waitForDltRecord(Consumer<String, String> consumer, String expectedEventType) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        while (System.nanoTime() < deadline) {
+            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
+            for (ConsumerRecord<String, String> consumerRecord : records) {
+                if (ORDER_ID.toString().equals(consumerRecord.key())&& expectedEventType.equals(readEventType(consumerRecord))) {
+                    return consumerRecord;
+                }
+            }
+        }
+        throw new AssertionError("Expected event type %s for order %s in DLT".formatted(expectedEventType, ORDER_ID));
+    }
+
+    private String readEventType(ConsumerRecord<String, String> consumerRecord) {
+        if (consumerRecord.headers().lastHeader("eventType") == null) {
+            return null;
+        }
+        return new String(consumerRecord.headers().lastHeader("eventType").value(), StandardCharsets.UTF_8);
     }
 
     private Order findOrder() {

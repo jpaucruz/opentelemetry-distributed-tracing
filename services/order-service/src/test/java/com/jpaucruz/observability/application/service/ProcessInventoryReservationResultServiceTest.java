@@ -15,8 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ProcessInventoryReservationResultServiceTest {
@@ -75,6 +75,34 @@ class ProcessInventoryReservationResultServiceTest {
         // then
         verify(findOrderPort).findOrder(ORDER_ID);
         verify(updateOrderPort).updateOrder(new Order(ORDER_ID, PRODUCT_ID, QUANTITY, OrderStatus.REJECTED));
+    }
+
+    @Test
+    void shouldNotUpdateOrderWhenReservedEventWasAlreadyProcessed() {
+        // given
+        UUID orderId = UUID.randomUUID();
+        Order order = new Order(orderId, PRODUCT_ID, QUANTITY, OrderStatus.CONFIRMED);
+        ProcessInventoryReservationResultCommand command =
+            new ProcessInventoryReservationResultCommand(orderId, ProcessInventoryReservationResultStatusCommand.RESERVED);
+        when(findOrderPort.findOrder(orderId)).thenReturn(Optional.of(order));
+        // when
+        service.processInventoryReservationResult(command);
+        // then
+        verify(updateOrderPort, never()).updateOrder(any());
+    }
+
+    @Test
+    void shouldNotUpdateOrderWhenRejectedEventWasAlreadyProcessed() {
+        // given
+        UUID orderId = UUID.randomUUID();
+        Order order = new Order(orderId, PRODUCT_ID, QUANTITY, OrderStatus.REJECTED);
+        ProcessInventoryReservationResultCommand command =
+            new ProcessInventoryReservationResultCommand(orderId, ProcessInventoryReservationResultStatusCommand.INSUFFICIENT_STOCK);
+        when(findOrderPort.findOrder(orderId)).thenReturn(Optional.of(order));
+        // when
+        service.processInventoryReservationResult(command);
+        // then
+        verify(updateOrderPort, never()).updateOrder(any());
     }
 
 }

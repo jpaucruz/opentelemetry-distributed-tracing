@@ -34,11 +34,16 @@ public class ReserveInventoryService implements ReserveInventoryUseCase {
         );
 
         switch (reservationPort.reserve(reservation)) {
-            case ReservationOutcome.Reserved ignored -> {}
+            case ReservationOutcome.Reserved ignored -> {
+                // no action required
+            }
             case ReservationOutcome.InventoryNotFound(var orderId, var productId, var requestedQuantity) ->
                 rejectInventoryPort.reject(orderId, productId, requestedQuantity, "INVENTORY_NOT_FOUND");
             case ReservationOutcome.InsufficientStock(var orderId, var productId, var requestedQuantity) ->
                 rejectInventoryPort.reject(orderId, productId, requestedQuantity, "INSUFFICIENT_STOCK");
+            case ReservationOutcome.AlreadyProcessed ignored -> {
+                // already processed, no action required
+            }
         }
 
     }

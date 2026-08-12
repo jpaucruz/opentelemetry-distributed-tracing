@@ -7,4 +7,6 @@ import java.util.UUID;
 
 public interface InventoryReservationRepository extends JpaRepository<InventoryReservationEntity, UUID> {
 
+    boolean existsByOrderId(UUID orderId);
+
 }
