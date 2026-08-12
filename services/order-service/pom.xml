@@ -91,6 +91,12 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- kafka -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+
         <!-- test -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -138,6 +144,24 @@
             <groupId>org.wiremock.integrations</groupId>
             <artifactId>wiremock-spring-boot</artifactId>
             <version>4.0.9</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -239,6 +263,7 @@
                         <configuration>
                             <excludes>
                                 <exclude>com/jpaucruz/observability/generated/adapter/in/rest/model/**</exclude>
+                                <exclude>**/*MapperImpl.class</exclude>
                             </excludes>
                         </configuration>
                     </execution>
@@ -270,6 +295,7 @@
 
                             <excludes>
                                 <exclude>com/jpaucruz/observability/generated/adapter/in/rest/model/**</exclude>
+                                <exclude>**/*MapperImpl.class</exclude>
                             </excludes>
                         </configuration>
                     </execution>

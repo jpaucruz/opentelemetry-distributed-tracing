@@ -8,9 +8,19 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-        ddl-auto: validate
+      ddl-auto: validate
   flyway:
-      enabled: true
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: order-service
+      auto-offset-reset: latest
+
+app:
+  kafka:
+    topics:
+      inventory-events: ${KAFKA_INVENTORY_EVENTS_TOPIC:inventory.events}
 
 management:
   endpoints:
@@ -21,11 +31,6 @@ management:
   endpoint:
     health:
       show-details: never
-
-clients:
-  inventory:
-    base-url: ${INVENTORY_BASE_URL:http://localhost:8081}
-    reservations-path: /api/v1/inventory/reservations
 
 server:
   port: 8080

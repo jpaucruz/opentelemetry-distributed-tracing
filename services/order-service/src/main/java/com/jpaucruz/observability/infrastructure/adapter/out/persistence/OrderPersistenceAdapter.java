@@ -2,6 +2,8 @@ package com.jpaucruz.observability.infrastructure.adapter.out.persistence;
 
 
 import com.jpaucruz.observability.application.port.out.CreateOrderPort;
+import com.jpaucruz.observability.application.port.out.FindOrderPort;
+import com.jpaucruz.observability.application.port.out.UpdateOrderPort;
 import com.jpaucruz.observability.domain.model.Order;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.entity.OrderEntity;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.entity.OrderOutboxEntity;
@@ -12,8 +14,11 @@ import com.jpaucruz.observability.infrastructure.adapter.out.persistence.reposit
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+import java.util.UUID;
+
 @Component
-public class OrderPersistenceAdapter implements CreateOrderPort {
+public class OrderPersistenceAdapter implements CreateOrderPort, FindOrderPort, UpdateOrderPort {
 
     private final OrderRepository orderRepository;
     private final OrderOutboxRepository outboxRepository;
@@ -39,10 +44,21 @@ public class OrderPersistenceAdapter implements CreateOrderPort {
         OrderEntity orderEntity = orderMapper.toEntity(order);
         OrderEntity persistedEntity = orderRepository.save(orderEntity);
         // order outbox
-        OrderOutboxEntity outboxEntity = outboxMapper.toEntity(order);
+        OrderOutboxEntity outboxEntity = outboxMapper.toEntity(order, "INVENTORY_RESERVATION_REQUESTED");
         outboxRepository.save(outboxEntity);
 
         return orderMapper.toDomain(persistedEntity);
+    }
+
+    @Override
+    public Optional<Order> findOrder(UUID orderId) {
+        return orderRepository.findById(orderId).map(orderMapper::toDomain);
+    }
+
+    @Override
+    public void updateOrder(Order order) {
+        OrderEntity entity = orderMapper.toEntity(order);
+        orderRepository.save(entity);
     }
 
 }

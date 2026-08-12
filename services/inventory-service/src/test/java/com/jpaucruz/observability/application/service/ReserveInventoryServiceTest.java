@@ -1,28 +1,21 @@
 package com.jpaucruz.observability.application.service;
 
-import com.jpaucruz.observability.application.exception.InsufficientStockException;
-import com.jpaucruz.observability.application.exception.InventoryNotFoundException;
-import com.jpaucruz.observability.application.mapper.ReserveInventoryMapper;
 import com.jpaucruz.observability.application.port.in.command.ReserveInventoryCommand;
-import com.jpaucruz.observability.application.port.in.result.ReserveInventoryResult;
+import com.jpaucruz.observability.application.port.out.RejectInventoryPort;
 import com.jpaucruz.observability.application.port.out.ReserveInventoryPort;
 import com.jpaucruz.observability.domain.model.InventoryReservation;
 import com.jpaucruz.observability.domain.model.ReservationOutcome;
 import com.jpaucruz.observability.domain.model.ReservationStatus;
-import com.jpaucruz.observability.infrastructure.mapper.MapStructReserveInventoryMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReserveInventoryServiceTest {
@@ -34,12 +27,14 @@ class ReserveInventoryServiceTest {
     @Mock
     private ReserveInventoryPort reserveInventoryPort;
 
+    @Mock
+    private RejectInventoryPort rejectInventoryPort;
+
     private ReserveInventoryService service;
 
     @BeforeEach
     void setUp() {
-        ReserveInventoryMapper mapper = Mappers.getMapper(MapStructReserveInventoryMapper.class);
-        service = new ReserveInventoryService(reserveInventoryPort, mapper);
+        service = new ReserveInventoryService(reserveInventoryPort, rejectInventoryPort);
     }
 
     @Test
@@ -54,37 +49,34 @@ class ReserveInventoryServiceTest {
                 )
             );
         // when
-        ReserveInventoryResult result = service.reserveInventory(command);
+        service.reserve(command);
         // then
-        assertThat(result.reservationId()).isNotNull();
-        assertThat(result.orderId()).isEqualTo(ORDER_ID);
-        assertThat(result.productId()).isEqualTo(PRODUCT_ID);
-        assertThat(result.quantity()).isEqualTo(QUANTITY);
-        assertThat(result.status()).isEqualTo(ReservationStatus.RESERVED);
+        verify(reserveInventoryPort).reserve(any());
+        verify(rejectInventoryPort, never()).reject(any(), any(), any(), any());
     }
 
     @Test
-    void shouldThrowInventoryNotFoundWhenInventoryDoesNotExist() {
+    void shouldRejectReservationWhenInventoryDoesNotExist() {
         // given
         ReserveInventoryCommand command = new ReserveInventoryCommand(ORDER_ID, PRODUCT_ID, QUANTITY);
         when(reserveInventoryPort.reserve(any()))
-            .thenReturn(new ReservationOutcome.InventoryNotFound(PRODUCT_ID));
-        // when / then
-        assertThatThrownBy(() -> service.reserveInventory(command))
-            .isInstanceOf(InventoryNotFoundException.class)
-            .hasMessageContaining(String.valueOf(PRODUCT_ID));
+            .thenReturn(new ReservationOutcome.InventoryNotFound(ORDER_ID, PRODUCT_ID, QUANTITY));
+        // when
+        service.reserve(command);
+        // then
+        verify(rejectInventoryPort).reject(ORDER_ID, PRODUCT_ID, QUANTITY,"INVENTORY_NOT_FOUND");
     }
 
     @Test
-    void shouldThrowInsufficientStockWhenInventoryIsNotAvailable() {
+    void shouldRejectReservationWhenStockIsInsufficient() {
         // given
         ReserveInventoryCommand command = new ReserveInventoryCommand(ORDER_ID, PRODUCT_ID, QUANTITY);
         when(reserveInventoryPort.reserve(any()))
-            .thenReturn(new ReservationOutcome.InsufficientStock(PRODUCT_ID, QUANTITY));
-        // when / then
-        assertThatThrownBy(() -> service.reserveInventory(command))
-            .isInstanceOf(InsufficientStockException.class)
-            .hasMessageContaining(String.valueOf(PRODUCT_ID));
+            .thenReturn(new ReservationOutcome.InsufficientStock(ORDER_ID, PRODUCT_ID, QUANTITY));
+        // when
+        service.reserve(command);
+        // then
+        verify(rejectInventoryPort).reject(ORDER_ID, PRODUCT_ID, QUANTITY,"INSUFFICIENT_STOCK");
     }
 
 }
