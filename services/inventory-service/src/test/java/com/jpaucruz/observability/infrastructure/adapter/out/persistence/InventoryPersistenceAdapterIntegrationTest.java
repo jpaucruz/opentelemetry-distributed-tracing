@@ -6,6 +6,8 @@ import com.jpaucruz.observability.domain.model.InventoryReservation;
 import com.jpaucruz.observability.domain.model.ReservationOutcome;
 import com.jpaucruz.observability.domain.model.ReservationStatus;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.entity.InventoryEntity;
+import com.jpaucruz.observability.infrastructure.adapter.out.persistence.entity.InventoryOutboxEntity;
+import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryOutboxRepository;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryRepository;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryReservationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +37,9 @@ class InventoryPersistenceAdapterIntegrationTest {
     @Autowired
     private InventoryReservationRepository reservationRepository;
 
+    @Autowired
+    private InventoryOutboxRepository outboxRepository;
+
     @Autowired // it is not manually instantiated to test transactionality
     private ReserveInventoryPort reserveInventoryPort;
 
@@ -45,6 +50,7 @@ class InventoryPersistenceAdapterIntegrationTest {
     void setUp() {
         reservationRepository.deleteAll();
         inventoryRepository.deleteAll();
+        outboxRepository.deleteAll();
     }
 
     @Test
@@ -71,6 +77,13 @@ class InventoryPersistenceAdapterIntegrationTest {
         InventoryEntity inventory = inventoryRepository.findById(PRODUCT_ID).orElseThrow();
         assertThat(inventory.getAvailableQuantity()).isEqualTo(INITIAL_STOCK - QUANTITY);
         assertThat(reservationRepository.findById(reservationId)).isPresent();
+        assertThat(outboxRepository.count()).isEqualTo(1);
+        InventoryOutboxEntity outbox = outboxRepository.findAll().getFirst();
+        assertThat(outbox.getId()).isNotNull();
+        assertThat(outbox.getAggregateId()).isEqualTo(reservation.orderId());
+        assertThat(outbox.getType()).isEqualTo("INVENTORY_RESERVED");
+        assertThat(outbox.getPayload()).isNotBlank();
+        assertThat(outbox.getCreatedAt()).isNotNull();
     }
 
     @Test
@@ -83,6 +96,7 @@ class InventoryPersistenceAdapterIntegrationTest {
         assertThat(outcome).isInstanceOfSatisfying(ReservationOutcome.InventoryNotFound.class, result ->
             assertThat(result.productId()).isEqualTo(PRODUCT_ID));
         assertThat(reservationRepository.count()).isZero();
+        assertThat(outboxRepository.count()).isZero();
     }
 
     @Test
@@ -101,6 +115,7 @@ class InventoryPersistenceAdapterIntegrationTest {
         InventoryEntity inventory = inventoryRepository.findById(PRODUCT_ID).orElseThrow();
         assertThat(inventory.getAvailableQuantity()).isEqualTo(2);
         assertThat(reservationRepository.count()).isZero();
+        assertThat(outboxRepository.count()).isZero();
     }
 
     @Test
@@ -120,6 +135,28 @@ class InventoryPersistenceAdapterIntegrationTest {
         InventoryEntity inventory = inventoryRepository.findById(PRODUCT_ID).orElseThrow();
         assertThat(inventory.getAvailableQuantity()).isEqualTo(INITIAL_STOCK);
         assertThat(reservationRepository.count()).isZero();
+        assertThat(outboxRepository.count()).isZero();
+    }
+
+    @Test
+    void shouldNotReserveInventoryTwiceWhenOrderWasAlreadyProcessed() {
+        // fill data
+        insertInventory(PRODUCT_ID, INITIAL_STOCK);
+        // given
+        UUID orderId = UUID.randomUUID();
+        InventoryReservation firstReservation =  InventoryReservation.create(orderId, PRODUCT_ID, QUANTITY);
+        InventoryReservation duplicatedReservation = InventoryReservation.create(orderId, PRODUCT_ID, QUANTITY);
+        // when
+        ReservationOutcome firstOutcome =  reserveInventoryPort.reserve(firstReservation);
+        ReservationOutcome secondOutcome = reserveInventoryPort.reserve(duplicatedReservation);
+        // then
+        assertThat(firstOutcome).isInstanceOf(ReservationOutcome.Reserved.class);
+        assertThat(secondOutcome)
+            .isInstanceOfSatisfying( ReservationOutcome.AlreadyProcessed.class, result -> assertThat(result.orderId()).isEqualTo(orderId));
+        InventoryEntity inventory = inventoryRepository.findById(PRODUCT_ID).orElseThrow();
+        assertThat(inventory.getAvailableQuantity()).isEqualTo(INITIAL_STOCK - QUANTITY);
+        assertThat(reservationRepository.count()).isEqualTo(1);
+        assertThat(outboxRepository.count()).isEqualTo(1);
     }
 
     private void insertInventory(long productId, int quantity) {

@@ -41,6 +41,10 @@ public class InventoryPersistenceAdapter implements ReserveInventoryPort {
     @Transactional
     public ReservationOutcome reserve(InventoryReservation reservation) {
 
+        // idempotent
+        if (reservationRepository.existsByOrderId(reservation.orderId())) {
+            return new ReservationOutcome.AlreadyProcessed(reservation.orderId());
+        }
         // stock
         int updateRows = inventoryRepository.reserve(reservation.productId(), reservation.quantity());
         if (updateRows == 0){

@@ -10,4 +10,6 @@ public sealed interface ReservationOutcome {
 
     record InsufficientStock(UUID orderId, Long productId, Integer requestedQuantity) implements ReservationOutcome {}
 
+    record AlreadyProcessed(UUID orderId) implements ReservationOutcome {}
+
 }

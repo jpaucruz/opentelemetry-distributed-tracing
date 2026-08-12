@@ -160,4 +160,25 @@ class InventoryMessagingAcceptanceTest {
         }
     }
 
+    @Test
+    void shouldProcessDuplicatedReservationRequestOnlyOnce() {
+        // given
+        String payload = "{\"orderId\":\"%s\",\"productId\":%d,\"quantity\":%d}".formatted(ORDER_ID, PRODUCT_ID, QUANTITY);
+        // when
+        kafkaTemplate.send(ORDER_EVENTS_TOPIC, ORDER_ID.toString(), payload).join();
+        kafkaTemplate.send(ORDER_EVENTS_TOPIC, ORDER_ID.toString(), payload).join();
+        // then
+        await()
+            .atMost(Duration.ofSeconds(10))
+            .untilAsserted(() -> {
+                InventoryEntity inventory = inventoryRepository.findById(PRODUCT_ID).orElseThrow();
+                assertThat(inventory.getAvailableQuantity()).isEqualTo(INITIAL_STOCK - QUANTITY);
+                assertThat(reservationRepository.count()).isEqualTo(1);
+                assertThat(outboxRepository.count()).isEqualTo(1);
+                InventoryOutboxEntity outbox = outboxRepository.findAll().getFirst();
+                assertThat(outbox.getAggregateId()).isEqualTo(ORDER_ID);
+                assertThat(outbox.getType()).isEqualTo("INVENTORY_RESERVED");
+            });
+    }
+
 }
