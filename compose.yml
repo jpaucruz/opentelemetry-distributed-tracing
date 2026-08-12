@@ -70,7 +70,8 @@ services:
 
 
   debezium-connect:
-    image: quay.io/debezium/connect:3.6.1.Final
+    build:
+      context: ./infrastructure/debezium
     ports:
       - "8083:8083"
     environment:
@@ -79,6 +80,18 @@ services:
       CONFIG_STORAGE_TOPIC: connect_configs
       OFFSET_STORAGE_TOPIC: connect_offsets
       STATUS_STORAGE_TOPIC: connect_statuses
+      ENABLE_OTEL: "true"
+      JAVA_TOOL_OPTIONS: >-
+        -javaagent:/kafka/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: debezium-connect
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
+      OTEL_PROPAGATORS: tracecontext
+      OTEL_INSTRUMENTATION_KAFKA_ENABLED: "false"
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: io.debezium.tracing.DebeziumTracingProducerInterceptor
     depends_on:
       - kafka
       - order-db
@@ -128,12 +141,20 @@ services:
       DB_USERNAME: inventory
       DB_PASSWORD: inventory
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OTEL_SERVICE_NAME: inventory-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
     ports:
       - "8081:8081"
     depends_on:
       inventory-db:
         condition: service_healthy
       kafka:
+        condition: service_started
+      otel-collector:
         condition: service_started
 
 
@@ -145,6 +166,12 @@ services:
       DB_USERNAME: orders
       DB_PASSWORD: orders
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OTEL_SERVICE_NAME: order-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: otlp
     ports:
       - "8080:8080"
     depends_on:
@@ -152,3 +179,24 @@ services:
         condition: service_healthy
       kafka:
         condition: service_started
+      otel-collector:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.157.0
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    volumes:
+      - ./infrastructure/opentelemetry/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/jaeger:2.20.0
+    ports:
+      - "16686:16686"
+      - "4317"
+      - "4318"

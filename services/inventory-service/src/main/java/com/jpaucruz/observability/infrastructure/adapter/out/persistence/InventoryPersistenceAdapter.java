@@ -11,6 +11,7 @@ import com.jpaucruz.observability.infrastructure.adapter.out.persistence.mapper.
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryOutboxRepository;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryRepository;
 import com.jpaucruz.observability.infrastructure.adapter.out.persistence.repository.InventoryReservationRepository;
+import com.jpaucruz.observability.infrastructure.observability.TraceContextSerializer;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Component;
 
@@ -22,19 +23,22 @@ public class InventoryPersistenceAdapter implements ReserveInventoryPort {
     private final InventoryOutboxRepository outboxRepository;
     private final InventoryReservationPersistenceMapper reservationMapper;
     private final InventoryOutboxPersistenceMapper outboxMapper;
+    private final TraceContextSerializer traceContextSerializer;
 
     public InventoryPersistenceAdapter(
         InventoryRepository inventoryRepository,
         InventoryReservationRepository reservationRepository,
         InventoryOutboxRepository outboxRepository,
         InventoryReservationPersistenceMapper reservationMapper,
-        InventoryOutboxPersistenceMapper outboxMapper
+        InventoryOutboxPersistenceMapper outboxMapper,
+        TraceContextSerializer traceContextSerializer
     ) {
         this.inventoryRepository = inventoryRepository;
         this.reservationRepository = reservationRepository;
         this.outboxRepository = outboxRepository;
         this.reservationMapper = reservationMapper;
         this.outboxMapper = outboxMapper;
+        this.traceContextSerializer = traceContextSerializer;
     }
 
     @Override
@@ -54,7 +58,11 @@ public class InventoryPersistenceAdapter implements ReserveInventoryPort {
         InventoryReservationEntity reservationEntity = reservationRepository.save(reservationMapper.toEntity(reservation));
         InventoryReservation currentReservation = reservationMapper.toDomain(reservationEntity);
         // outbox
-        InventoryOutboxEntity outboxEntity = outboxMapper.toEntity(currentReservation, "INVENTORY_RESERVED");
+        InventoryOutboxEntity outboxEntity = outboxMapper.toEntity(
+            currentReservation,
+            "INVENTORY_RESERVED",
+            traceContextSerializer.serializeCurrentContext()
+        );
         outboxRepository.save(outboxEntity);
 
         return new ReservationOutcome.Reserved(currentReservation);

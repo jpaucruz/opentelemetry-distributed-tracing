@@ -38,4 +38,7 @@ public class InventoryOutboxEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "tracingspancontext")
+    private String tracingSpanContext;
+
 }
