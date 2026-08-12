@@ -31,6 +31,9 @@
     "transforms.outbox.table.field.event.key": "aggregate_id",
     "transforms.outbox.table.field.event.payload": "payload",
 
+    "transforms.outbox.tracing.span.context.field": "tracingspancontext",
+    "transforms.outbox.tracing.with.context.field.only": "true",
+
     "transforms.outbox.table.expand.json.payload": "true",
 
     "transforms.outbox.route.by.field": "type",

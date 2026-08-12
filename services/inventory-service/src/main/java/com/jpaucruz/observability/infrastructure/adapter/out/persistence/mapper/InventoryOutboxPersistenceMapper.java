@@ -26,7 +26,8 @@ public interface InventoryOutboxPersistenceMapper {
     @Mapping(target = "type", source = "type")
     @Mapping(target = "payload", source = "source", qualifiedByName = "serialize")
     @Mapping(target = "createdAt", expression = "java(Instant.now())")
-    InventoryOutboxEntity toEntity(InventoryReservation source, String type);
+    @Mapping(target = "tracingSpanContext", source = "tracingSpanContext")
+    InventoryOutboxEntity toEntity(InventoryReservation source, String type, String tracingSpanContext);
 
     @Named("serialize")
     default String serialize(InventoryReservation source) {
@@ -41,7 +42,8 @@ public interface InventoryOutboxPersistenceMapper {
     @Mapping(target = "type", source = "type")
     @Mapping(target = "payload", expression = "java(serialize(orderId, productId, quantity))")
     @Mapping(target = "createdAt", expression = "java(Instant.now())")
-    InventoryOutboxEntity toRejectEntity(UUID orderId, Long productId, int quantity, String type);
+    @Mapping(target = "tracingSpanContext", source = "tracingSpanContext")
+    InventoryOutboxEntity toRejectEntity(UUID orderId, Long productId, int quantity, String type, String tracingSpanContext);
 
     default String serialize(UUID orderId, Long productId, int quantity) {
         final ObjectMapper objectMapper = new ObjectMapper();

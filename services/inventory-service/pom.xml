@@ -80,6 +80,12 @@
             <artifactId>spring-boot-starter-kafka</artifactId>
         </dependency>
 
+        <!-- tracing -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+        </dependency>
+
         <!-- test -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

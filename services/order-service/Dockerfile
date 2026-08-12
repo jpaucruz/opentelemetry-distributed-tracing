@@ -21,21 +21,31 @@ RUN ./mvnw --batch-mode clean package -DskipTests \
     && cp "${JAR_FILE}" target/application.jar
 
 
+FROM curlimages/curl:8.16.0 AS otel-agent
+
+ARG OTEL_AGENT_VERSION=2.30.0
+
+RUN curl -fsSL \
+    "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar" \
+    -o /tmp/opentelemetry-javaagent.jar
+
+
 FROM eclipse-temurin:21-jre AS runtime
 
 WORKDIR /app
-
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y curl \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder \
     --chown=10001:10001 \
     /workspace/target/application.jar \
     /app/application.jar
 
+COPY --from=otel-agent \
+    --chown=10001:10001 \
+    /tmp/opentelemetry-javaagent.jar \
+    /app/opentelemetry-javaagent.jar
+
 USER 10001:10001
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/application.jar"]
+ENTRYPOINT ["java", "-javaagent:/app/opentelemetry-javaagent.jar", "-jar", "/app/application.jar"]

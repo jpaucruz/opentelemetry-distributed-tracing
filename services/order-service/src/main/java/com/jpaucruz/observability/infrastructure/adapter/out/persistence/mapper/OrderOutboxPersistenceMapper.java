@@ -26,7 +26,8 @@ public interface OrderOutboxPersistenceMapper {
     @Mapping(target = "type", source = "type")
     @Mapping(target = "payload", source = "source", qualifiedByName = "serialize")
     @Mapping(target = "createdAt", expression = "java(Instant.now())")
-    OrderOutboxEntity toEntity(Order source, String type);
+    @Mapping(target = "tracingSpanContext", source = "tracingSpanContext")
+    OrderOutboxEntity toEntity(Order source, String type, String tracingSpanContext);
 
     @Named("serialize")
     default String serialize(Order source) {
